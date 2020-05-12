@@ -161,6 +161,8 @@ fun generateKLib(
 
     val moduleFragment = psi2IrContext.generateModuleFragmentWithPlugins(project, files, irLinker, expectDescriptorToSymbol)
 
+    irLinker.postProcess()
+
     moduleFragment.acceptVoid(ManglerChecker(JsManglerIr, Ir2DescriptorManglerAdapter(JsManglerDesc)))
 
     val moduleName = configuration[CommonConfigurationKeys.MODULE_NAME]!!
