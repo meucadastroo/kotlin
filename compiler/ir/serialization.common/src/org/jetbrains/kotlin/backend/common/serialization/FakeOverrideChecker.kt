@@ -38,6 +38,8 @@ class FakeOverrideChecker(val irMangler: KotlinMangler.IrMangler, val descriptor
             .filterIsInstance<CallableMemberDescriptor>()
             .filter { it.kind == CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
             .filterNot { it.visibility == Visibilities.PRIVATE || it.visibility == Visibilities.INVISIBLE_FAKE }
+            // TODO: JS moves deserialized classes to a common module, so internal visibilities can't be calculated correctly.
+            .filterNot { it.visibility == Visibilities.INTERNAL }
 
         val descriptorSignatures = descriptorFakeOverrides
             .map { with(descriptorMangler) { it.signatureString }}
@@ -46,6 +48,8 @@ class FakeOverrideChecker(val irMangler: KotlinMangler.IrMangler, val descriptor
         val irFakeOverrides = clazz.declarations
             .filterIsInstance<IrOverridableMember>()
             .filter { it.isFakeOverride }
+            // TODO: JS moves deserialized classes to a common module, so internal visibilities can't be calculated correctly.
+            .filterNot { it.visibility == Visibilities.INTERNAL }
 
         irFakeOverrides.forEach {
             checkOverriddenSymbols(it)
