@@ -7,10 +7,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.descriptors.findClassAcrossModuleDependencies
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.declarations.IrClass
-import org.jetbrains.kotlin.ir.declarations.IrFunction
-import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
-import org.jetbrains.kotlin.ir.declarations.IrOverridableMember
+import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
@@ -19,7 +16,16 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.module
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
 
-class FakeOverrideChecker(val irMangler: IrBasedKotlinManglerImpl, val descriptorMangler: DescriptorBasedKotlinManglerImpl) {
+class FakeOverrideChecker(val irMangler: KotlinMangler.IrMangler, val descriptorMangler: KotlinMangler.DescriptorMangler) {
+
+    fun checkOverriddenSymbols(fake: IrOverridableMember) {
+        if (fake !is IrSimpleFunction) return // TODO: we need overridden symbols on IrProperty.
+        fake.overriddenSymbols.forEach { symbol ->
+            assert((symbol.owner.parent as IrClass).declarations.contains(symbol.owner)) {
+                "CHECK overridden symbols: ${fake.render()} refers to ${symbol.owner.render()} which is not a member of ${symbol.owner.parent.render()}"
+            }
+        }
+    }
 
     private fun validateFakeOverrides(clazz: IrClass) {
         val classId = clazz.classId ?: return
@@ -41,14 +47,18 @@ class FakeOverrideChecker(val irMangler: IrBasedKotlinManglerImpl, val descripto
             .filterIsInstance<IrOverridableMember>()
             .filter { it.isFakeOverride }
 
-        val irSignarures = irFakeOverrides
+        irFakeOverrides.forEach {
+            checkOverriddenSymbols(it)
+        }
+
+        val irSignatures = irFakeOverrides
             .map { with(irMangler) { it.signatureString }}
             .sorted()
 
-        assert(descriptorSignatures == irSignarures) {
+        assert(descriptorSignatures == irSignatures) {
             "[IR VALIDATION] Fake override mismatch for ${clazz.fqNameWhenAvailable!!}\n" +
             "\tDescriptor based: $descriptorSignatures\n" +
-            "\tIR based        : $irSignarures"
+            "\tIR based        : $irSignatures"
         }
     }
 

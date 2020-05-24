@@ -84,7 +84,7 @@ object JvmBackendFacade {
         stubGenerator.setIrProviders(irProviders)
 
         val irModuleFragment = psi2ir.generateModuleFragment(psi2irContext, files, irProviders, expectDescriptorToSymbol = null)
-        irLinker.postProcess()
+        irLinker.postProcess(validate = true)
 
         stubGenerator.unboundSymbolGeneration = true
 

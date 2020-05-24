@@ -43,7 +43,7 @@ interface IrExtensionGenerator {
 
 interface IrDeserializer : IrProvider {
     fun init(moduleFragment: IrModuleFragment?) {}
-    fun postProcess() {}
+    fun postProcess(validate: Boolean = false) {}
 }
 
 interface ReferenceSymbolTable {

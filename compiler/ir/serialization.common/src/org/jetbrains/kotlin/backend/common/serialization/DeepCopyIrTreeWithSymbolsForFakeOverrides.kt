@@ -18,7 +18,7 @@ import org.jetbrains.kotlin.ir.visitors.acceptVoid
 
 // This is basicly modelled after the inliner copier.
 class DeepCopyIrTreeWithSymbolsForFakeOverrides(
-    val typeArguments: Map<IrTypeParameterSymbol, IrType?>?,
+    val typeArguments: Map<IrTypeParameterSymbol, IrType>,
     val superType: IrType,
     val parent: IrClass,
     val newModality: Modality? = null,
@@ -44,7 +44,7 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
 
     private inner class FakeOverrideTypeRemapper(
         val symbolRemapper: SymbolRemapper,
-        val typeArguments: Map<IrTypeParameterSymbol, IrType?>?
+        val typeArguments: Map<IrTypeParameterSymbol, IrType>
     ) : TypeRemapper {
 
         override fun enterScope(irTypeParametersContainer: IrTypeParametersContainer) {}
@@ -60,7 +60,7 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
         override fun remapType(type: IrType): IrType {
             if (type !is IrSimpleType) return type
 
-            val substitutedType = typeArguments?.get(type.classifier)
+            val substitutedType = typeArguments.get(type.classifier)
 
             if (substitutedType is IrDynamicType) return substitutedType
 
@@ -82,10 +82,9 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
 
     private class FakeOverrideSymbolRemapperImpl(descriptorsRemapper: DescriptorsRemapper) : DeepCopySymbolRemapper(descriptorsRemapper) {
 
-        var typeArguments: Map<IrTypeParameterSymbol, IrType?>? = null
+        var typeArguments = mapOf<IrTypeParameterSymbol, IrType>()
             set(value) {
-                if (field != null) return
-                field = value?.asSequence()?.associate {
+                field = value.asSequence().associate {
                     (getReferencedClassifier(it.key) as IrTypeParameterSymbol) to it.value
                 }
             }
@@ -94,7 +93,7 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
             val result = super.getReferencedClassifier(symbol)
             if (result !is IrTypeParameterSymbol)
                 return result
-            return typeArguments?.get(result)?.classifierOrNull ?: result
+            return typeArguments.get(result)?.classifierOrNull ?: result
         }
     }
 

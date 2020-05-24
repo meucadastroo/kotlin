@@ -268,7 +268,7 @@ fun loadIr(
 
             irLinker.init(null)
             ExternalDependenciesGenerator(symbolTable, listOf(irLinker), configuration.languageVersionSettings).generateUnboundSymbolsAsDependencies()
-            irLinker.postProcess()
+            irLinker.postProcess(validate = true)
 
             return IrModuleInfo(moduleFragment, deserializedModuleFragments, irBuiltIns, symbolTable, irLinker)
         }

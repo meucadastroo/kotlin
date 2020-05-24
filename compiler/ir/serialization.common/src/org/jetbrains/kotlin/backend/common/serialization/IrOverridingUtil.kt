@@ -93,11 +93,10 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         debug("\nDESERIALIZED members:\n\t${fromCurrent.map {it.render()}.joinToString("\n\t")}")
 
         val allFromSuper = superTypes.flatMap { superType ->
-            val superClass = superType.classifierOrNull?.owner as IrClass? // TODO: What if there's no class?
-            superClass!!.declarations
+            val superClass = superType.classOrNull!!.owner as IrClass // TODO: What if there's no class?
+            superClass.declarations
                 .filterIsInstance<IrOverridableMember>()
                 .filter { (it as IrSymbolOwner).symbol.isPublicApi }
-                // HEre we try to depart from descriptor counterpart algoritm making the substitution right here.
                 .map{
                     val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(superType, it, clazz)
                     originals.put(fakeOverride, it as IrOverridableMember)
@@ -128,7 +127,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
 
         for (fromCurrent in membersFromCurrent) {
             val bound = extractAndBindOverridesForMember(fromCurrent, membersFromSupertypes, current)
-            bound?.let { notOverridden.removeAll(it) }
+            notOverridden.removeAll(bound)
         }
 
         debug("GROUP ${name.toString()}")
@@ -139,7 +138,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         fromCurrent: IrOverridableMember,
         descriptorsFromSuper: Collection<IrOverridableMember>,
         current: IrClass
-    ): Collection<IrOverridableMember>? {
+    ): Collection<IrOverridableMember> {
         val bound = ArrayList<IrOverridableMember>(descriptorsFromSuper.size)
         val overridden = mutableSetOf<IrOverridableMember>()
         for (fromSupertype in descriptorsFromSuper) {

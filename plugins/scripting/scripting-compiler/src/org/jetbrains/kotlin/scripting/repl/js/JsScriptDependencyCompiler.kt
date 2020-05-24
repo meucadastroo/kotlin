@@ -75,7 +75,7 @@ class JsScriptDependencyCompiler(
         ExternalDependenciesGenerator(symbolTable, irProviders, configuration.languageVersionSettings)
             .generateUnboundSymbolsAsDependencies()
         moduleFragment.patchDeclarationParents()
-        jsLinker.postProcess()
+        jsLinker.postProcess(validate = true)
 
         moduleFragment.files += irDependencies.filter { it !== moduleFragment }.flatMap { it.files }
 

@@ -68,7 +68,7 @@ fun compile(
 
     val irFiles = allModules.flatMap { it.files }
 
-    deserializer.postProcess()
+    deserializer.postProcess(validate = true)
 
     moduleFragment.files.clear()
     moduleFragment.files += irFiles
