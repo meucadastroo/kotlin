@@ -25,10 +25,7 @@ import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
-import org.jetbrains.kotlin.ir.types.IrDynamicType
-import org.jetbrains.kotlin.ir.types.IrType
-import org.jetbrains.kotlin.ir.types.IrTypeCheckerContext
-import org.jetbrains.kotlin.ir.types.classifierOrNull
+import org.jetbrains.kotlin.ir.types.*
 import org.jetbrains.kotlin.ir.util.isReal
 import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.name.Name
@@ -80,11 +77,19 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             }
         }
 
+    // We need to get Any's members if all the parents are private.
+    private fun allPublicApiSuperTypesOrAny(clazz: IrClass): List<IrType> {
+        val superTypes = clazz.superTypes
+        return if (superTypes.isEmpty() || superTypes.any { it.classOrNull!!.isPublicApi })
+            superTypes
+        else
+            listOf(irBuiltIns.anyType)
+    }
 
     fun buildFakeOverridesForClass(clazz: IrClass) {
         debug("\n\nBUILDING fake overrides (2) for ${clazz.render()}:")
 
-        val superTypes = clazz.superTypes
+        val superTypes = allPublicApiSuperTypesOrAny(clazz)
 
         val fromCurrent = clazz.declarations
             .filterIsInstance<IrOverridableMember>()
