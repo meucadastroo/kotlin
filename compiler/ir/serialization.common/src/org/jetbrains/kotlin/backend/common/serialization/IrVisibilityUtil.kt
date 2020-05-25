@@ -65,5 +65,5 @@ fun findMemberWithMaxVisibility(members: Collection<IrOverridableMember>): IrOve
             member = candidate
         }
     }
-    return member!!
+    return member ?: error("Could not find a visible member")
 }

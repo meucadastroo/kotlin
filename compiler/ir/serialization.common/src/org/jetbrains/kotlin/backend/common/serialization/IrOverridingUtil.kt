@@ -60,14 +60,15 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
     private var IrOverridableMember.overriddenSymbols: List<IrSymbol>
         get() = when (this) {
             is IrSimpleFunction -> this.overriddenSymbols
-            is IrProperty -> fakeOverrideBuilder.propertyOverriddenSymbols[this]!!
+            is IrProperty -> fakeOverrideBuilder.propertyOverriddenSymbols[this]
+                ?: error("No overridden symbols for ${this.render()}")
             else -> error("Unexpected declaration for overriddenSymbols: $this")
         }
         set(value) {
             when (this) {
                 is IrSimpleFunction -> this.overriddenSymbols = value as List<IrSimpleFunctionSymbol>
                 is IrProperty -> {
-                    fakeOverrideBuilder.propertyOverriddenSymbols.put(this, value)
+                    fakeOverrideBuilder.propertyOverriddenSymbols[this] = value
                     this.getter!!.overriddenSymbols = value.map{(it.owner as IrProperty).getter!!.symbol}
                     this.setter?.let{  setter ->
                         setter.overriddenSymbols = value.map{(it.owner as IrProperty).setter?.symbol}.filterNotNull()
@@ -93,19 +94,19 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
 
         val fromCurrent = clazz.declarations
             .filterIsInstance<IrOverridableMember>()
-            .filter { (it as IrSymbolOwner).symbol.isPublicApi }
+            .filter { it.symbol.isPublicApi }
 
         debug("\nDESERIALIZED members:\n\t${fromCurrent.map {it.render()}.joinToString("\n\t")}")
 
         val allFromSuper = superTypes.flatMap { superType ->
-            val superClass = superType.classOrNull!!.owner as IrClass // TODO: What if there's no class?
+            val superClass = superType.getClass()!!
             superClass.declarations
                 .filterIsInstance<IrOverridableMember>()
                 .filter { (it as IrSymbolOwner).symbol.isPublicApi }
                 .map{
                     val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(superType, it, clazz)
-                    originals.put(fakeOverride, it as IrOverridableMember)
-                    originalSuperTypes.put(fakeOverride, superType)
+                    originals[fakeOverride] = it
+                    originalSuperTypes[fakeOverride] = superType
                     fakeOverride
                 }
         }
@@ -116,7 +117,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             generateOverridesInFunctionGroup(
                 group.key,
                 group.value,
-                fromCurrent.filter {it.name == group.key},
+                fromCurrent.filter { it.name == group.key },
                 clazz
             )
         }
@@ -405,7 +406,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
                 )
             }
         }
-        throw IllegalArgumentException("Unexpected callable: " + a.javaClass)
+        error("Unexpected callable: $a")
     }
 
     private fun isMoreSpecificThenAllOf(
@@ -429,7 +430,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         if (overridables.size == 1) {
             return overridables.first()
         }
-        val candidates: MutableCollection<IrOverridableMember> = java.util.ArrayList(2)
+        val candidates = mutableListOf<IrOverridableMember>()
         var transitivelyMostSpecific = overridables.first()
         val transitivelyMostSpecificDescriptor = transitivelyMostSpecific
         for (overridable in overridables) {
@@ -494,12 +495,12 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
     }
 
     fun getBothWaysOverridability(
-        overriderDescriptor: IrOverridableMember?,
-        candidateDescriptor: IrOverridableMember?
+        overriderDescriptor: IrOverridableMember,
+        candidateDescriptor: IrOverridableMember
     ): OverrideCompatibilityInfo.Result {
         val result1 = isOverridableBy(
-            candidateDescriptor!!,
-            overriderDescriptor!!
+            candidateDescriptor,
+            overriderDescriptor
             //null
         ).result
         val result2 = isOverridableBy(

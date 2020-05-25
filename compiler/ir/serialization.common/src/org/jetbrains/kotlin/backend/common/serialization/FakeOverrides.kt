@@ -116,10 +116,12 @@ class FakeOverrideBuilderImpl(
         val existingSymbol =
             symbolTable.referenceSimpleFunctionFromLinker(WrappedSimpleFunctionDescriptor(), signature)
 
-        (declaration.symbol as? IrDelegatingSimpleFunctionSymbolImpl)?.let {
-            debug("REDELEGATING ${declaration.nameForIrSerialization} from ${(declaration.symbol as IrDelegatingSimpleFunctionSymbolImpl).delegate} to $existingSymbol")
-            it.delegate = existingSymbol
-        } ?: error("Expected a delegating symbol in ${declaration.render()} ${declaration.symbol}")
+        val declarationSymbol = declaration.symbol
+        require(declarationSymbol is IrDelegatingSimpleFunctionSymbol) {
+            "Expected a delegating symbol in ${declaration.render()} ${declarationSymbol}"
+        }
+        debug("REDELEGATING ${declaration.nameForIrSerialization} from ${declarationSymbol.delegate} to $existingSymbol")
+        declarationSymbol.delegate = existingSymbol
 
         existingSymbol.bind(declaration)
         symbolTable.rebindSimpleFunction(signature, declaration)
@@ -135,10 +137,12 @@ class FakeOverrideBuilderImpl(
         val existingSymbol =
             symbolTable.referencePropertyFromLinker(WrappedPropertyDescriptor(), signature)
 
-        (declaration.symbol as? IrDelegatingPropertySymbolImpl)?.let {
-            debug("REDELEGATING ${declaration.nameForIrSerialization} to $existingSymbol")
-            it.delegate = existingSymbol
-        } ?: error("Expected a delegating symbol in ${declaration.render()} ${declaration.symbol}")
+        val declarationSymbol = declaration.symbol
+        require(declarationSymbol is IrDelegatingPropertySymbol) {
+            "Expected a delegating symbol in ${declaration.render()} ${declarationSymbol}"
+        }
+        debug("REDELEGATING ${declaration.nameForIrSerialization} from ${declarationSymbol.delegate} to $existingSymbol")
+        declarationSymbol.delegate = existingSymbol
 
         existingSymbol.bind(declaration)
         symbolTable.rebindProperty(signature, declaration)
@@ -171,6 +175,5 @@ class FakeOverrideBuilderImpl(
                 // Don't go for function local classes
             }
         })
-
     }
 }
