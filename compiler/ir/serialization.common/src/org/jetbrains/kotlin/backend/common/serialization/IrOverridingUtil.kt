@@ -40,7 +40,7 @@ import org.jetbrains.kotlin.types.AbstractTypeCheckerContext
 interface FakeOverrideBuilderStrategy {
     fun fakeOverrideMember(superType: IrType, member: IrOverridableMember, clazz: IrClass, newModality: Modality? = null, newVisibility: Visibility? =  null): IrOverridableMember
     // TODO: this one doesn't belong here. IrOverridingUtil shouldn't know about symbol table.
-    fun redelegateFakeOverride(fakeOverride: IrOverridableMember)
+    fun linkFakeOverride(fakeOverride: IrOverridableMember)
     // TODO: need to make IrProperty carry overriddenSymbols.
     val propertyOverriddenSymbols: MutableMap<IrOverridableMember, List<IrSymbol>>
 }
@@ -339,7 +339,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             !fakeOverride.overriddenSymbols.isEmpty()
         ) { "Overridden symbols should be set for " + CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
 
-        fakeOverrideBuilder.redelegateFakeOverride(fakeOverride)
+        fakeOverrideBuilder.linkFakeOverride(fakeOverride)
         debug("SYNTHESIZED: ${ir2stringWhole(fakeOverride)}")
         current.declarations.add(fakeOverride)
     }

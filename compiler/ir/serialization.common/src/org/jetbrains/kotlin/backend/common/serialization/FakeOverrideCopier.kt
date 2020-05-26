@@ -3,9 +3,7 @@ package org.jetbrains.kotlin.backend.common.serialization
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Visibility
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.declarations.impl.IrFunctionImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrPropertyImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrValueParameterImpl
+import org.jetbrains.kotlin.ir.declarations.impl.*
 import org.jetbrains.kotlin.ir.descriptors.WrappedReceiverParameterDescriptor
 import org.jetbrains.kotlin.ir.symbols.IrDelegatingPropertySymbolImpl
 import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
@@ -57,10 +55,10 @@ class FakeOverrideCopier(
         }
 
     override fun visitSimpleFunction(declaration: IrSimpleFunction): IrSimpleFunction =
-        IrFunctionImpl(
+        IrFakeOverrideFunctionImpl(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
-            (wrapInDelegatedSymbol(symbolRemapper.getDeclaredFunction(declaration.symbol)) as IrSimpleFunctionSymbol),
+            symbolRemapper.getDeclaredFunction(declaration.symbol),
             symbolRenamer.getFunctionName(declaration.symbol),
             newVisibility ?: declaration.visibility,
             newModality ?: declaration.modality,
@@ -70,7 +68,6 @@ class FakeOverrideCopier(
             isTailrec = declaration.isTailrec,
             isSuspend = declaration.isSuspend,
             isExpect = declaration.isExpect,
-            isFakeOverride = true,
             isOperator = declaration.isOperator
         ).apply {
             transformFunctionChildren(declaration)
@@ -78,10 +75,10 @@ class FakeOverrideCopier(
 
 
     override fun visitProperty(declaration: IrProperty): IrProperty =
-        IrPropertyImpl(
+        IrFakeOverridePropertyImpl(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
-            (wrapInDelegatedSymbol(symbolRemapper.getDeclaredProperty(declaration.symbol)) as IrPropertySymbol),
+            symbolRemapper.getDeclaredProperty(declaration.symbol),
             declaration.name,
             newVisibility ?: declaration.visibility,
             newModality ?: declaration.modality,

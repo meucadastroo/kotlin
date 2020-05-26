@@ -89,7 +89,7 @@ class FakeOverrideBuilderImpl(
 
         val superClasses = superTypes.map {
             it.getClass() ?: error("Unexpected super type: $it")
-        }.filterNotNull()
+        }
 
         superClasses.forEach {
             buildFakeOverrideChainsForClass(it)
@@ -101,60 +101,57 @@ class FakeOverrideBuilderImpl(
 
     override fun buildFakeOverridesForClass(clazz: IrClass) = irOverridingUtil.buildFakeOverridesForClass(clazz)
 
-    override fun redelegateFakeOverride(fake: IrOverridableMember) {
-        when (fake) {
-            is IrSimpleFunction -> redelegateFunction(fake)
-            is IrProperty -> redelegateProperty(fake)
+    override fun linkFakeOverride(fakeOverride: IrOverridableMember) {
+        when (fakeOverride) {
+            is IrFakeOverrideFunction -> linkFunctionFakeOverride(fakeOverride)
+            is IrFakeOverrideProperty -> linkPropertyFakeOverride(fakeOverride)
+            else -> error("Unexpected fake override: $fakeOverride")
         }
     }
 
-    private fun redelegateFunction(declaration: IrSimpleFunction) {
+    private fun linkFunctionFakeOverride(declaration: IrFakeOverrideFunction) {
         val signature = signaturer.composePublicIdSignature(declaration)
 
-        val existingSymbol =
-            symbolTable.referenceSimpleFunctionFromLinker(WrappedSimpleFunctionDescriptor(), signature)
+        symbolTable.declareSimpleFunctionFromLinker(
+            WrappedSimpleFunctionDescriptor(),
+            signature,
+            { newSymbol ->
+                debug("REBINDING ${declaration.nameForIrSerialization} to $newSymbol")
+                declaration.symbol = newSymbol
+                newSymbol.bind(declaration)
+                (newSymbol.descriptor as? WrappedSimpleFunctionDescriptor)?.let {
+                    if (!it.isBound()) it.bind(declaration)
+                }
 
-        val declarationSymbol = declaration.symbol
-        require(declarationSymbol is IrDelegatingSimpleFunctionSymbol) {
-            "Expected a delegating symbol in ${declaration.render()} ${declarationSymbol}"
-        }
-        debug("REDELEGATING ${declaration.nameForIrSerialization} from ${declarationSymbol.delegate} to $existingSymbol")
-        declarationSymbol.delegate = existingSymbol
-
-        existingSymbol.bind(declaration)
-        symbolTable.rebindSimpleFunction(signature, declaration)
-
-        (existingSymbol.descriptor as? WrappedSimpleFunctionDescriptor)?.let {
-            if (!it.isBound()) it.bind(declaration)
-        }
+                declaration
+            }
+        )
     }
 
-    private fun redelegateProperty(declaration: IrProperty) {
+    private fun linkPropertyFakeOverride(declaration: IrFakeOverrideProperty) {
         val signature = signaturer.composePublicIdSignature(declaration)
 
-        val existingSymbol =
-            symbolTable.referencePropertyFromLinker(WrappedPropertyDescriptor(), signature)
+        symbolTable.declarePropertyFromLinker(
+            WrappedPropertyDescriptor(),
+            signature,
+            { newSymbol ->
+                debug("REBINDING ${declaration.nameForIrSerialization} to $newSymbol")
+                declaration.symbol = newSymbol
+                newSymbol.bind(declaration)
+                (newSymbol.descriptor as? WrappedPropertyDescriptor)?.let {
+                    if (!it.isBound()) it.bind(declaration)
+                }
 
-        val declarationSymbol = declaration.symbol
-        require(declarationSymbol is IrDelegatingPropertySymbol) {
-            "Expected a delegating symbol in ${declaration.render()} ${declarationSymbol}"
-        }
-        debug("REDELEGATING ${declaration.nameForIrSerialization} from ${declarationSymbol.delegate} to $existingSymbol")
-        declarationSymbol.delegate = existingSymbol
-
-        existingSymbol.bind(declaration)
-        symbolTable.rebindProperty(signature, declaration)
-
-        (existingSymbol.descriptor as? WrappedPropertyDescriptor)?.let {
-            if (!it.isBound()) it.bind(declaration)
-        }
+                declaration
+            }
+        )
 
         declaration.getter?.let {
-            redelegateFunction(it)
+            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
             it.correspondingPropertySymbol = declaration.symbol
         }
         declaration.setter?.let {
-            redelegateFunction(it)
+            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
             it.correspondingPropertySymbol = declaration.symbol
         }
     }
