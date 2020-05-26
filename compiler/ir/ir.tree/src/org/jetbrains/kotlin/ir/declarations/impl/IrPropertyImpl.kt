@@ -28,6 +28,85 @@ import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.descriptorUtil.isEffectivelyExternal
 
+abstract class IrPropertyCommonImpl(
+    startOffset: Int,
+    endOffset: Int,
+    origin: IrDeclarationOrigin,
+    override val symbol: IrPropertySymbol,
+    override val name: Name,
+    override val visibility: Visibility,
+    override val modality: Modality,
+    override val isVar: Boolean,
+    override val isConst: Boolean,
+    override val isLateinit: Boolean,
+    override val isDelegated: Boolean,
+    override val isExternal: Boolean,
+    override val isExpect: Boolean,
+    override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE
+) : IrDeclarationBase<PropertyCarrier>(startOffset, endOffset, origin),
+    IrProperty,
+    PropertyCarrier {
+
+    abstract override val descriptor: PropertyDescriptor
+
+    override var backingFieldField: IrField? = null
+
+    override var backingField: IrField?
+        get() = getCarrier().backingFieldField
+        set(v) {
+            if (backingField !== v) {
+                setCarrier().backingFieldField = v
+            }
+        }
+
+    override var getterField: IrSimpleFunction? = null
+
+    override var getter: IrSimpleFunction?
+        get() = getCarrier().getterField
+        set(v) {
+            if (getter !== v) {
+                setCarrier().getterField = v
+            }
+        }
+
+    override var setterField: IrSimpleFunction? = null
+
+    override var setter: IrSimpleFunction?
+        get() = getCarrier().setterField
+        set(v) {
+            if (setter !== v) {
+                setCarrier().setterField = v
+            }
+        }
+
+
+    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
+        return visitor.visitProperty(this, data)
+    }
+
+    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
+        backingField?.accept(visitor, data)
+        getter?.accept(visitor, data)
+        setter?.accept(visitor, data)
+    }
+
+    override var metadataField: MetadataSource? = null
+
+    override var metadata: MetadataSource?
+        get() = getCarrier().metadataField
+        set(v) {
+            if (metadata !== v) {
+                setCarrier().metadataField = v
+            }
+        }
+
+    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
+        backingField = backingField?.transform(transformer, data) as? IrField
+        getter = getter?.run { transform(transformer, data) as IrSimpleFunction }
+        setter = setter?.run { transform(transformer, data) as IrSimpleFunction }
+    }
+}
+
 class IrPropertyImpl(
     startOffset: Int,
     endOffset: Int,
@@ -43,9 +122,7 @@ class IrPropertyImpl(
     override val isExternal: Boolean,
     override val isExpect: Boolean = false,
     override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE
-) : IrDeclarationBase<PropertyCarrier>(startOffset, endOffset, origin),
-    IrProperty,
-    PropertyCarrier {
+) : IrPropertyCommonImpl(startOffset, endOffset, origin, symbol, name, visibility, modality, isVar, isConst, isLateinit, isDelegated, isExternal, isExpect, isFakeOverride) {
 
     @Deprecated(message = "Don't use descriptor-based API for IrProperty", level = DeprecationLevel.WARNING)
     constructor(
@@ -135,63 +212,29 @@ class IrPropertyImpl(
     init {
         symbol.bind(this)
     }
-
     override val descriptor: PropertyDescriptor = symbol.descriptor
+}
 
-    override var backingFieldField: IrField? = null
-
-    override var backingField: IrField?
-        get() = getCarrier().backingFieldField
-        set(v) {
-            if (backingField !== v) {
-                setCarrier().backingFieldField = v
-            }
-        }
-
-    override var getterField: IrSimpleFunction? = null
-
-    override var getter: IrSimpleFunction?
-        get() = getCarrier().getterField
-        set(v) {
-            if (getter !== v) {
-                setCarrier().getterField = v
-            }
-        }
-
-    override var setterField: IrSimpleFunction? = null
-
-    override var setter: IrSimpleFunction?
-        get() = getCarrier().setterField
-        set(v) {
-            if (setter !== v) {
-                setCarrier().setterField = v
-            }
-        }
-
-
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
-        return visitor.visitProperty(this, data)
+class IrFakeOverridePropertyImpl(
+    startOffset: Int,
+    endOffset: Int,
+    origin: IrDeclarationOrigin,
+    override var symbol: IrPropertySymbol,
+    name: Name,
+    visibility: Visibility,
+    modality: Modality,
+    isVar: Boolean,
+    isConst: Boolean,
+    isLateinit: Boolean,
+    isDelegated: Boolean,
+    isExternal: Boolean,
+    isExpect: Boolean,
+) : IrPropertyCommonImpl(startOffset, endOffset, origin, symbol, name, visibility, modality, isVar, isConst, isLateinit,
+    isDelegated, isExternal, isExpect, isFakeOverride = true),
+    IrFakeOverrideProperty
+{
+    init {
+        symbol.bind(this)
     }
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        backingField?.accept(visitor, data)
-        getter?.accept(visitor, data)
-        setter?.accept(visitor, data)
-    }
-
-    override var metadataField: MetadataSource? = null
-
-    override var metadata: MetadataSource?
-        get() = getCarrier().metadataField
-        set(v) {
-            if (metadata !== v) {
-                setCarrier().metadataField = v
-            }
-        }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        backingField = backingField?.transform(transformer, data) as? IrField
-        getter = getter?.run { transform(transformer, data) as IrSimpleFunction }
-        setter = setter?.run { transform(transformer, data) as IrSimpleFunction }
-    }
+    override val descriptor: PropertyDescriptor = symbol.descriptor
 }

@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.ir.declarations
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 
 interface IrProperty :
     IrDeclarationWithName,
@@ -40,4 +41,7 @@ interface IrProperty :
     var backingField: IrField?
     var getter: IrSimpleFunction?
     var setter: IrSimpleFunction?
+
 }
+
+interface IrFakeOverrideProperty : IrProperty, IrRebindableDeclaration<IrPropertySymbol>

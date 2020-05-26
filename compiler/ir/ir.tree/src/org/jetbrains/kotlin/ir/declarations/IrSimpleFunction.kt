@@ -24,5 +24,7 @@ interface IrSimpleFunction :
     var correspondingPropertySymbol: IrPropertySymbol?
 }
 
+interface IrFakeOverrideFunction : IrSimpleFunction, IrRebindableDeclaration<IrSimpleFunctionSymbol>
+
 val IrFunction.isPropertyAccessor: Boolean
     get() = this is IrSimpleFunction && correspondingPropertySymbol != null
