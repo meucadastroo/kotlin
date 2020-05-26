@@ -73,7 +73,6 @@ class FakeOverrideChecker(val irMangler: KotlinMangler.IrMangler, val descriptor
             }
             override fun visitFunction(declaration: IrFunction) {
                 // Don't go for function local classes
-                return
             }
         })
     }
