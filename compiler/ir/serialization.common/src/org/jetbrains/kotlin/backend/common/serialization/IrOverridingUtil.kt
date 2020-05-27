@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverrideFunctionImpl
 import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverridePropertyImpl
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
+import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.types.IrDynamicType
@@ -67,9 +68,11 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         }
         set(value) {
             when (this) {
-                is IrSimpleFunction -> this.overriddenSymbols = value as List<IrSimpleFunctionSymbol>
+                is IrSimpleFunction -> this.overriddenSymbols =
+                    value.map { it as? IrSimpleFunctionSymbol ?: error("Unexpected function overridden symbol: $it") }
                 is IrProperty -> {
-                    fakeOverrideBuilder.propertyOverriddenSymbols[this] = value
+                    fakeOverrideBuilder.propertyOverriddenSymbols[this] =
+                        value.map { it as? IrPropertySymbol ?: error("Unexpected property overridden symbol: $it") }
                     this.getter!!.overriddenSymbols = value.map{(it.owner as IrProperty).getter!!.symbol}
                     this.setter?.let{  setter ->
                         setter.overriddenSymbols = value.map{(it.owner as IrProperty).setter?.symbol}.filterNotNull()

@@ -17,7 +17,6 @@ class FakeOverrideCopier(
     val symbolRemapper: SymbolRemapper,
     val typeRemapper: TypeRemapper,
     val symbolRenamer: SymbolRenamer,
-    val destinationClass: IrClass,
     val newModality: Modality? = null,
     val newVisibility: Visibility? = null
 ) : DeepCopyIrTreeWithSymbols(symbolRemapper, typeRemapper, symbolRenamer) {

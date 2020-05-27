@@ -99,5 +99,5 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
 
     private val symbolRemapper = FakeOverrideSymbolRemapperImpl(DescriptorsToIrRemapper)
     private val copier =
-        FakeOverrideCopier(symbolRemapper, FakeOverrideTypeRemapper(symbolRemapper, typeArguments), SymbolRenamer.DEFAULT, parent, newModality, newVisibility)
+        FakeOverrideCopier(symbolRemapper, FakeOverrideTypeRemapper(symbolRemapper, typeArguments), SymbolRenamer.DEFAULT, newModality, newVisibility)
 }
