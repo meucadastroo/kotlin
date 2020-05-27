@@ -52,9 +52,6 @@ interface FakeOverrideBuilderStrategy {
 // to use abstract overridable member interfaces.
 
 class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: FakeOverrideBuilderStrategy) {
-    private val doDebug = false
-    private inline fun debug(any: Any) = if (doDebug) println(any) else {}
-
     private val originals = mutableMapOf<IrOverridableMember, IrOverridableMember>()
     private val IrOverridableMember.original get() = originals[this] ?: error("No original for ${this.render()}")
     private val originalSuperTypes = mutableMapOf<IrOverridableMember, IrType>()
@@ -91,21 +88,17 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
     }
 
     fun buildFakeOverridesForClass(clazz: IrClass) {
-        debug("\n\nBUILDING fake overrides (2) for ${clazz.render()}:")
-
         val superTypes = allPublicApiSuperTypesOrAny(clazz)
 
         val fromCurrent = clazz.declarations
             .filterIsInstance<IrOverridableMember>()
             .filter { it.symbol.isPublicApi }
-
-        debug("\nDESERIALIZED members:\n\t${fromCurrent.map {it.render()}.joinToString("\n\t")}")
-
+        
         val allFromSuper = superTypes.flatMap { superType ->
             val superClass = superType.getClass() ?: error("Unexpected super type: $superType")
             superClass.declarations
                 .filterIsInstance<IrOverridableMember>()
-                .filter { (it as IrSymbolOwner).symbol.isPublicApi }
+                .filter { it.symbol.isPublicApi }
                 .map{
                     val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(superType, it, clazz)
                     originals[fakeOverride] = it
@@ -139,7 +132,6 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             notOverridden.removeAll(bound)
         }
 
-        debug("GROUP ${name.toString()}")
         createAndBindFakeOverrides(current, notOverridden)
     }
 
@@ -173,7 +165,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             }
         }
         //strategy.setOverriddenDescriptors(fromCurrent, overridden)
-        fromCurrent.overriddenSymbols = overridden.map{it.original}.map { if (it is IrProperty) it.symbol else (it as IrSymbolDeclaration<*>).symbol }
+        fromCurrent.overriddenSymbols = overridden.map { it.original.symbol }
 
         return bound
     }
@@ -309,12 +301,6 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         overridables: Collection<IrOverridableMember>,
         current: IrClass
     ) {
-
-        debug("BIND overridables:\n\t")
-        overridables.forEach{
-            debug("\t${it.render()}")
-        }
-
         val effectiveOverridden = filterVisibleFakeOverrides(current, overridables)
 
         // The descriptor based algorithm goes further building invisible fakes here,
@@ -325,7 +311,6 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         val visibility = findMemberWithMaxVisibility(effectiveOverridden).visibility
         val mostSpecific = selectMostSpecificMember(effectiveOverridden)
 
-        debug("UPDATE modality: $modality visibility: $visibility" )
         val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(
             originalSuperTypes[mostSpecific]!!,
             mostSpecific.original,
@@ -334,13 +319,12 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             visibility
         )
 
-        fakeOverride.overriddenSymbols = effectiveOverridden.map {it.original}. map {  if (it is IrProperty) it.symbol else (it as IrSymbolDeclaration<*>).symbol }
+        fakeOverride.overriddenSymbols = effectiveOverridden.map { it.original.symbol }
         assert(
             !fakeOverride.overriddenSymbols.isEmpty()
         ) { "Overridden symbols should be set for " + CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
 
         fakeOverrideBuilder.linkFakeOverride(fakeOverride)
-        debug("SYNTHESIZED: ${ir2stringWhole(fakeOverride)}")
         current.declarations.add(fakeOverride)
     }
 
