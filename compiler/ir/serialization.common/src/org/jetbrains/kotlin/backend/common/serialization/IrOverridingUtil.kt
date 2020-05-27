@@ -22,6 +22,8 @@ import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.descriptors.Visibility
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverrideFunctionImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverridePropertyImpl
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
@@ -311,15 +313,22 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         val visibility = findMemberWithMaxVisibility(effectiveOverridden).visibility
         val mostSpecific = selectMostSpecificMember(effectiveOverridden)
 
-        val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(
-            originalSuperTypes[mostSpecific]!!,
-            mostSpecific.original,
-            current,
-            modality,
-            visibility
-        )
+        val fakeOverride = mostSpecific.apply {
+            when (this) {
+                is IrFakeOverridePropertyImpl -> {
+                    this.visibility = visibility
+                    this.modality = modality
+                }
+                is IrFakeOverrideFunctionImpl -> {
+                    this.visibility = visibility
+                    this.modality = modality
+                }
+                else -> error("Unexpected fake override kind: $this")
+            }
+        }
 
         fakeOverride.overriddenSymbols = effectiveOverridden.map { it.original.symbol }
+
         assert(
             !fakeOverride.overriddenSymbols.isEmpty()
         ) { "Overridden symbols should be set for " + CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
