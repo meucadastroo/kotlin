@@ -16,12 +16,15 @@
 
 package org.jetbrains.kotlin.ir.declarations.impl
 
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.Visibility
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.carriers.PropertyCarrier
+import org.jetbrains.kotlin.ir.descriptors.WrappedPropertyDescriptor
 import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.impl.IrPropertySymbolImpl
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
@@ -32,7 +35,6 @@ abstract class IrPropertyCommonImpl(
     startOffset: Int,
     endOffset: Int,
     origin: IrDeclarationOrigin,
-    override val symbol: IrPropertySymbol,
     override val name: Name,
     override val visibility: Visibility,
     override val modality: Modality,
@@ -122,7 +124,7 @@ class IrPropertyImpl(
     override val isExternal: Boolean,
     override val isExpect: Boolean = false,
     override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE
-) : IrPropertyCommonImpl(startOffset, endOffset, origin, symbol, name, visibility, modality, isVar, isConst, isLateinit, isDelegated, isExternal, isExpect, isFakeOverride) {
+) : IrPropertyCommonImpl(startOffset, endOffset, origin, name, visibility, modality, isVar, isConst, isLateinit, isDelegated, isExternal, isExpect, isFakeOverride) {
 
     @Deprecated(message = "Don't use descriptor-based API for IrProperty", level = DeprecationLevel.WARNING)
     constructor(
@@ -219,7 +221,6 @@ class IrFakeOverridePropertyImpl(
     startOffset: Int,
     endOffset: Int,
     origin: IrDeclarationOrigin,
-    override var symbol: IrPropertySymbol,
     name: Name,
     visibility: Visibility,
     modality: Modality,
@@ -229,12 +230,22 @@ class IrFakeOverridePropertyImpl(
     isDelegated: Boolean,
     isExternal: Boolean,
     isExpect: Boolean,
-) : IrPropertyCommonImpl(startOffset, endOffset, origin, symbol, name, visibility, modality, isVar, isConst, isLateinit,
+) : IrPropertyCommonImpl(startOffset, endOffset, origin, name, visibility, modality, isVar, isConst, isLateinit,
     isDelegated, isExternal, isExpect, isFakeOverride = true),
     IrFakeOverrideProperty
 {
-    init {
+    private var _symbol: IrPropertySymbol? = null
+
+    override val symbol: IrPropertySymbol
+        get() = _symbol ?: error("$this has not acquired a symbol yet")
+
+    override val descriptor get() =
+        _symbol?.descriptor ?: WrappedPropertyDescriptor()
+
+    override fun acquireSymbol(symbol: IrPropertySymbol) {
+        assert(_symbol == null) { "$this already has symbol _symbol" }
+        _symbol = symbol
         symbol.bind(this)
+        (symbol.descriptor as? WrappedPropertyDescriptor)?.bind(this)
     }
-    override val descriptor: PropertyDescriptor = symbol.descriptor
 }

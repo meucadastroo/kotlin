@@ -58,7 +58,6 @@ class FakeOverrideCopier(
         IrFakeOverrideFunctionImpl(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
-            symbolRemapper.getDeclaredFunction(declaration.symbol),
             symbolRenamer.getFunctionName(declaration.symbol),
             newVisibility ?: declaration.visibility,
             newModality ?: declaration.modality,
@@ -78,7 +77,6 @@ class FakeOverrideCopier(
         IrFakeOverridePropertyImpl(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
-            symbolRemapper.getDeclaredProperty(declaration.symbol),
             declaration.name,
             newVisibility ?: declaration.visibility,
             newModality ?: declaration.modality,
@@ -90,11 +88,7 @@ class FakeOverrideCopier(
             isExternal = false
         ).apply {
             transformAnnotations(declaration)
-            this.getter = declaration.getter?.transform()?.also {
-                it.correspondingPropertySymbol = this.symbol
-            }
-            this.setter = declaration.setter?.transform()?.also {
-                it.correspondingPropertySymbol = this.symbol
-            }
+            this.getter = declaration.getter?.transform()
+            this.setter = declaration.setter?.transform()
         }
 }

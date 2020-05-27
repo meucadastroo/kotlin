@@ -51,9 +51,6 @@ class FakeOverrideBuilderImpl(
     val platformSpecificClassFilter: PlatformFakeOverrideClassFilter = DefaultFakeOverrideClassFilter
 ) : FakeOverrideBuilder, FakeOverrideBuilderStrategy
 {
-    private val doDebug = false
-    private inline fun debug(any: Any) = if (doDebug) println(any) else {}
-
     private val haveFakeOverrides = mutableSetOf<IrClass>()
     override val propertyOverriddenSymbols = mutableMapOf<IrOverridableMember, List<IrSymbol>>()
     private val irOverridingUtil = IrOverridingUtil(irBuiltIns, this)
@@ -75,8 +72,6 @@ class FakeOverrideBuilderImpl(
 
         val deepCopyFakeOverride = copier.copy(member) as IrOverridableMember
         deepCopyFakeOverride.parent = clazz
-        assert(deepCopyFakeOverride.symbol.owner == deepCopyFakeOverride)
-        assert((deepCopyFakeOverride.symbol.descriptor as? WrappedDeclarationDescriptor<*>)?.owner == deepCopyFakeOverride)
 
         return deepCopyFakeOverride
     }
@@ -116,13 +111,7 @@ class FakeOverrideBuilderImpl(
             WrappedSimpleFunctionDescriptor(),
             signature,
             { newSymbol ->
-                debug("REBINDING ${declaration.nameForIrSerialization} to $newSymbol")
-                declaration.symbol = newSymbol
-                newSymbol.bind(declaration)
-                (newSymbol.descriptor as? WrappedSimpleFunctionDescriptor)?.let {
-                    if (!it.isBound()) it.bind(declaration)
-                }
-
+                declaration.acquireSymbol(newSymbol)
                 declaration
             }
         )
@@ -135,24 +124,18 @@ class FakeOverrideBuilderImpl(
             WrappedPropertyDescriptor(),
             signature,
             { newSymbol ->
-                debug("REBINDING ${declaration.nameForIrSerialization} to $newSymbol")
-                declaration.symbol = newSymbol
-                newSymbol.bind(declaration)
-                (newSymbol.descriptor as? WrappedPropertyDescriptor)?.let {
-                    if (!it.isBound()) it.bind(declaration)
-                }
-
+                declaration.acquireSymbol(newSymbol)
                 declaration
             }
         )
 
         declaration.getter?.let {
-            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
             it.correspondingPropertySymbol = declaration.symbol
+            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
         }
         declaration.setter?.let {
-            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
             it.correspondingPropertySymbol = declaration.symbol
+            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
         }
     }
 
