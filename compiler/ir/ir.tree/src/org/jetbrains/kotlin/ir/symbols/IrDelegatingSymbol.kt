@@ -24,41 +24,23 @@ abstract class IrDelegatingSymbol<S : IrBindableSymbol<D, B>, B : IrSymbolOwner,
     }
 }
 
-interface IrDelegatingClassSymbol : IrClassSymbol {
-    var delegate: IrClassSymbol
-}
 class IrDelegatingClassSymbolImpl(delegate: IrClassSymbol) :
-    IrDelegatingClassSymbol, IrDelegatingSymbol<IrClassSymbol, IrClass, ClassDescriptor>(delegate)
+    IrClassSymbol, IrDelegatingSymbol<IrClassSymbol, IrClass, ClassDescriptor>(delegate)
 
-interface IrDelegatingEnumEntrySymbol : IrEnumEntrySymbol {
-    var delegate: IrEnumEntrySymbol
-}
 class IrDelegatingEnumEntrySymbolImpl(delegate: IrEnumEntrySymbol) :
-    IrDelegatingEnumEntrySymbol, IrDelegatingSymbol<IrEnumEntrySymbol, IrEnumEntry, ClassDescriptor>(delegate)
+    IrEnumEntrySymbol, IrDelegatingSymbol<IrEnumEntrySymbol, IrEnumEntry, ClassDescriptor>(delegate)
 
-interface IrDelegatingSimpleFunctionSymbol : IrSimpleFunctionSymbol {
-    var delegate: IrSimpleFunctionSymbol
-}
 class IrDelegatingSimpleFunctionSymbolImpl(delegate: IrSimpleFunctionSymbol) :
-    IrDelegatingSimpleFunctionSymbol, IrDelegatingSymbol<IrSimpleFunctionSymbol, IrSimpleFunction, FunctionDescriptor>(delegate)
+    IrSimpleFunctionSymbol, IrDelegatingSymbol<IrSimpleFunctionSymbol, IrSimpleFunction, FunctionDescriptor>(delegate)
 
-interface IrDelegatingConstructorSymbol : IrConstructorSymbol {
-    var delegate: IrConstructorSymbol
-}
 class IrDelegatingConstructorSymbolImpl(delegate: IrConstructorSymbol) :
-    IrDelegatingConstructorSymbol, IrDelegatingSymbol<IrConstructorSymbol, IrConstructor, ClassConstructorDescriptor>(delegate)
+    IrConstructorSymbol, IrDelegatingSymbol<IrConstructorSymbol, IrConstructor, ClassConstructorDescriptor>(delegate)
 
-interface IrDelegatingPropertySymbol : IrPropertySymbol {
-    var delegate: IrPropertySymbol
-}
 class IrDelegatingPropertySymbolImpl(delegate: IrPropertySymbol) :
-    IrDelegatingPropertySymbol, IrDelegatingSymbol<IrPropertySymbol, IrProperty, PropertyDescriptor>(delegate)
+    IrPropertySymbol, IrDelegatingSymbol<IrPropertySymbol, IrProperty, PropertyDescriptor>(delegate)
 
-interface IrDelegatingTypeAliasSymbol : IrTypeAliasSymbol {
-    var delegate: IrTypeAliasSymbol
-}
 class IrDelegatingTypeAliasSymbolImpl(delegate: IrTypeAliasSymbol) :
-    IrDelegatingTypeAliasSymbol, IrDelegatingSymbol<IrTypeAliasSymbol, IrTypeAlias, TypeAliasDescriptor>(delegate)
+    IrTypeAliasSymbol, IrDelegatingSymbol<IrTypeAliasSymbol, IrTypeAlias, TypeAliasDescriptor>(delegate)
 
 fun wrapInDelegatedSymbol(delegate: IrSymbol) = when(delegate) {
     is IrClassSymbol -> IrDelegatingClassSymbolImpl(delegate)

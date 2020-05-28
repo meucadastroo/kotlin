@@ -43,5 +43,3 @@ interface IrProperty :
     var setter: IrSimpleFunction?
 
 }
-
-interface IrFakeOverrideProperty : IrProperty, IrRebindableDeclaration<IrPropertySymbol>

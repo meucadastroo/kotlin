@@ -153,8 +153,7 @@ class IrFakeOverrideFunctionImpl(
     isExpect: Boolean
 ) : IrFunctionCommonImpl(startOffset, endOffset, origin, name, visibility, modality, returnType, isInline,
     isExternal, isTailrec, isSuspend, isOperator, isExpect,
-    isFakeOverride = true),
-    IrFakeOverrideFunction
+    isFakeOverride = true)
 {
     private var _symbol: IrSimpleFunctionSymbol? = null
 
@@ -164,7 +163,7 @@ class IrFakeOverrideFunctionImpl(
     override val descriptor get() =
         _symbol?.descriptor ?: WrappedSimpleFunctionDescriptor()
 
-    override fun acquireSymbol(symbol: IrSimpleFunctionSymbol) {
+    fun acquireSymbol(symbol: IrSimpleFunctionSymbol) {
         assert(_symbol == null) { "$this already has symbol _symbol" }
         _symbol = symbol
         symbol.bind(this)

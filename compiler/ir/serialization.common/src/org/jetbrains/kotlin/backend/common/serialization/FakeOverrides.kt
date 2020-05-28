@@ -18,7 +18,12 @@ package org.jetbrains.kotlin.backend.common.serialization
 
 import org.jetbrains.kotlin.backend.common.serialization.signature.IdSignatureSerializer
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrFunction
+import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrOverridableMember
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverrideFunctionImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverridePropertyImpl
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
 import org.jetbrains.kotlin.ir.descriptors.WrappedPropertyDescriptor
 import org.jetbrains.kotlin.ir.descriptors.WrappedSimpleFunctionDescriptor
@@ -107,13 +112,13 @@ class FakeOverrideBuilderImpl(
 
     override fun linkFakeOverride(fakeOverride: IrOverridableMember) {
         when (fakeOverride) {
-            is IrFakeOverrideFunction -> linkFunctionFakeOverride(fakeOverride)
-            is IrFakeOverrideProperty -> linkPropertyFakeOverride(fakeOverride)
+            is IrFakeOverrideFunctionImpl -> linkFunctionFakeOverride(fakeOverride)
+            is IrFakeOverridePropertyImpl -> linkPropertyFakeOverride(fakeOverride)
             else -> error("Unexpected fake override: $fakeOverride")
         }
     }
 
-    private fun linkFunctionFakeOverride(declaration: IrFakeOverrideFunction) {
+    private fun linkFunctionFakeOverride(declaration: IrFakeOverrideFunctionImpl) {
         val signature = signaturer.composePublicIdSignature(declaration)
 
         symbolTable.declareSimpleFunctionFromLinker(WrappedSimpleFunctionDescriptor(), signature) {
@@ -122,7 +127,7 @@ class FakeOverrideBuilderImpl(
         }
     }
 
-    private fun linkPropertyFakeOverride(declaration: IrFakeOverrideProperty) {
+    private fun linkPropertyFakeOverride(declaration: IrFakeOverridePropertyImpl) {
         val signature = signaturer.composePublicIdSignature(declaration)
 
         symbolTable.declarePropertyFromLinker(WrappedPropertyDescriptor(), signature) {
@@ -132,11 +137,15 @@ class FakeOverrideBuilderImpl(
 
         declaration.getter?.let {
             it.correspondingPropertySymbol = declaration.symbol
-            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
+            linkFunctionFakeOverride(it as? IrFakeOverrideFunctionImpl
+                ?: error("Unexpected fake override getter: $it")
+            )
         }
         declaration.setter?.let {
             it.correspondingPropertySymbol = declaration.symbol
-            linkFunctionFakeOverride(it as IrFakeOverrideFunction)
+            linkFunctionFakeOverride(it as? IrFakeOverrideFunctionImpl
+                ?: error("Unexpected fake override setter: $it")
+            )
         }
     }
 
