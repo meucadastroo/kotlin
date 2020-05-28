@@ -2,8 +2,6 @@ package org.jetbrains.kotlin.backend.common.serialization
 
 import org.jetbrains.kotlin.backend.common.DescriptorsToIrRemapper
 import org.jetbrains.kotlin.backend.common.WrappedDescriptorPatcher
-import org.jetbrains.kotlin.descriptors.Modality
-import org.jetbrains.kotlin.descriptors.Visibility
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrTypeParametersContainer
@@ -20,9 +18,7 @@ import org.jetbrains.kotlin.ir.visitors.acceptVoid
 class DeepCopyIrTreeWithSymbolsForFakeOverrides(
     val typeArguments: Map<IrTypeParameterSymbol, IrType>,
     val superType: IrType,
-    val parent: IrClass,
-    val newModality: Modality? = null,
-    val newVisibility: Visibility? = null
+    val parent: IrClass
 ) {
 
     fun copy(irElement: IrElement): IrElement {
@@ -60,7 +56,7 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
         override fun remapType(type: IrType): IrType {
             if (type !is IrSimpleType) return type
 
-            val substitutedType = typeArguments.get(type.classifier)
+            val substitutedType = typeArguments[type.classifier]
 
             if (substitutedType is IrDynamicType) return substitutedType
 
@@ -80,7 +76,8 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
         }
     }
 
-    private class FakeOverrideSymbolRemapperImpl(descriptorsRemapper: DescriptorsRemapper) : DeepCopySymbolRemapper(descriptorsRemapper) {
+    private class FakeOverrideSymbolRemapperImpl(descriptorsRemapper: DescriptorsRemapper) :
+        DeepCopySymbolRemapper(descriptorsRemapper) {
 
         var typeArguments = mapOf<IrTypeParameterSymbol, IrType>()
             set(value) {
@@ -93,11 +90,15 @@ class DeepCopyIrTreeWithSymbolsForFakeOverrides(
             val result = super.getReferencedClassifier(symbol)
             if (result !is IrTypeParameterSymbol)
                 return result
-            return typeArguments.get(result)?.classifierOrNull ?: result
+            return typeArguments[result]?.classifierOrNull ?: result
         }
     }
 
     private val symbolRemapper = FakeOverrideSymbolRemapperImpl(DescriptorsToIrRemapper)
     private val copier =
-        FakeOverrideCopier(symbolRemapper, FakeOverrideTypeRemapper(symbolRemapper, typeArguments), SymbolRenamer.DEFAULT, newModality, newVisibility)
+        FakeOverrideCopier(
+            symbolRemapper,
+            FakeOverrideTypeRemapper(symbolRemapper, typeArguments),
+            SymbolRenamer.DEFAULT
+        )
 }

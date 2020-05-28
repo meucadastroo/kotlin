@@ -16,11 +16,9 @@
 
 package org.jetbrains.kotlin.backend.common.serialization
 
-import org.jetbrains.kotlin.backend.common.ir.ir2stringWhole
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.Visibilities
-import org.jetbrains.kotlin.descriptors.Visibility
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverrideFunctionImpl
 import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverridePropertyImpl
@@ -30,20 +28,20 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.types.IrDynamicType
 import org.jetbrains.kotlin.ir.types.IrType
-import org.jetbrains.kotlin.ir.types.IrTypeCheckerContext
 import org.jetbrains.kotlin.ir.types.getClass
 import org.jetbrains.kotlin.ir.util.isReal
 import org.jetbrains.kotlin.ir.util.render
-import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.OverridingUtil.OverrideCompatibilityInfo
 import org.jetbrains.kotlin.resolve.OverridingUtil.OverrideCompatibilityInfo.incompatible
 import org.jetbrains.kotlin.types.AbstractTypeChecker
 import org.jetbrains.kotlin.types.AbstractTypeCheckerContext
 
 interface FakeOverrideBuilderStrategy {
-    fun fakeOverrideMember(superType: IrType, member: IrOverridableMember, clazz: IrClass, newModality: Modality? = null, newVisibility: Visibility? =  null): IrOverridableMember
+    fun fakeOverrideMember(superType: IrType, member: IrOverridableMember, clazz: IrClass): IrOverridableMember
+
     // TODO: this one doesn't belong here. IrOverridingUtil shouldn't know about symbol table.
     fun linkFakeOverride(fakeOverride: IrOverridableMember)
+
     // TODO: need to make IrProperty carry overriddenSymbols.
     val propertyOverriddenSymbols: MutableMap<IrOverridableMember, List<IrSymbol>>
 }
@@ -54,7 +52,10 @@ interface FakeOverrideBuilderStrategy {
 // Need to convert frontend's OverridingUtil to Kotlin and merge this codes
 // to use abstract overridable member interfaces.
 
-class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: FakeOverrideBuilderStrategy) {
+class IrOverridingUtil(
+    private val irBuiltIns: IrBuiltIns,
+    private val fakeOverrideBuilder: FakeOverrideBuilderStrategy
+) {
     private val originals = mutableMapOf<IrOverridableMember, IrOverridableMember>()
     private val IrOverridableMember.original get() = originals[this] ?: error("No original for ${this.render()}")
     private val originalSuperTypes = mutableMapOf<IrOverridableMember, IrType>()
@@ -73,9 +74,9 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
                 is IrProperty -> {
                     fakeOverrideBuilder.propertyOverriddenSymbols[this] =
                         value.map { it as? IrPropertySymbol ?: error("Unexpected property overridden symbol: $it") }
-                    this.getter!!.overriddenSymbols = value.map{(it.owner as IrProperty).getter!!.symbol}
-                    this.setter?.let{  setter ->
-                        setter.overriddenSymbols = value.map{(it.owner as IrProperty).setter?.symbol}.filterNotNull()
+                    this.getter!!.overriddenSymbols = value.map { (it.owner as IrProperty).getter!!.symbol }
+                    this.setter?.let { setter ->
+                        setter.overriddenSymbols = value.mapNotNull { (it.owner as IrProperty).setter?.symbol }
                     }
                 }
                 else -> error("Unexpected declaration for overriddenSymbols: $this")
@@ -86,7 +87,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
     private fun allPublicApiSuperTypesOrAny(clazz: IrClass): List<IrType> {
         val superTypes = clazz.superTypes
         val superClasses = superTypes.map { it.getClass() ?: error("Unexpected super type: $it") }
-        return if (superClasses.isEmpty() || superClasses.any { it.symbol.isPublicApi  })
+        return if (superClasses.isEmpty() || superClasses.any { it.symbol.isPublicApi })
             superTypes
         else
             listOf(irBuiltIns.anyType)
@@ -98,13 +99,13 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         val fromCurrent = clazz.declarations
             .filterIsInstance<IrOverridableMember>()
             .filter { it.symbol.isPublicApi }
-        
+
         val allFromSuper = superTypes.flatMap { superType ->
             val superClass = superType.getClass() ?: error("Unexpected super type: $superType")
             superClass.declarations
                 .filterIsInstance<IrOverridableMember>()
                 .filter { it.symbol.isPublicApi }
-                .map{
+                .map {
                     val fakeOverride = fakeOverrideBuilder.fakeOverrideMember(superType, it, clazz)
                     originals[fakeOverride] = it
                     originalSuperTypes[fakeOverride] = superType
@@ -116,7 +117,6 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
 
         allFromSuperByName.forEach { group ->
             generateOverridesInFunctionGroup(
-                group.key,
                 group.value,
                 fromCurrent.filter { it.name == group.key },
                 clazz
@@ -124,8 +124,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         }
     }
 
-    fun generateOverridesInFunctionGroup(
-        name: Name,
+    private fun generateOverridesInFunctionGroup(
         membersFromSupertypes: List<IrOverridableMember>,
         membersFromCurrent: List<IrOverridableMember>,
         current: IrClass
@@ -133,7 +132,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         val notOverridden = membersFromSupertypes.toMutableSet()
 
         for (fromCurrent in membersFromCurrent) {
-            val bound = extractAndBindOverridesForMember(fromCurrent, membersFromSupertypes, current)
+            val bound = extractAndBindOverridesForMember(fromCurrent, membersFromSupertypes)
             notOverridden.removeAll(bound)
         }
 
@@ -142,13 +141,12 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
 
     private fun extractAndBindOverridesForMember(
         fromCurrent: IrOverridableMember,
-        descriptorsFromSuper: Collection<IrOverridableMember>,
-        current: IrClass
+        descriptorsFromSuper: Collection<IrOverridableMember>
     ): Collection<IrOverridableMember> {
         val bound = ArrayList<IrOverridableMember>(descriptorsFromSuper.size)
         val overridden = mutableSetOf<IrOverridableMember>()
         for (fromSupertype in descriptorsFromSuper) {
-            val result = isOverridableBy(fromSupertype, fromCurrent/*, current*/).getResult()
+            val result = isOverridableBy(fromSupertype, fromCurrent/*, current*/).result
             val isVisibleForOverride = isVisibleForOverride(fromCurrent, fromSupertype.original)
             when (result) {
                 OverrideCompatibilityInfo.Result.OVERRIDABLE -> {
@@ -180,11 +178,11 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         notOverridden: Collection<IrOverridableMember>
     ) {
         val fromSuper = notOverridden.toMutableSet()
-        while (!fromSuper.isEmpty()) {
+        while (fromSuper.isNotEmpty()) {
             val notOverriddenFromSuper = findMemberWithMaxVisibility(fromSuper)
             val overridables = extractMembersOverridableInBothWays(
-                    notOverriddenFromSuper,
-                    fromSuper
+                notOverriddenFromSuper,
+                fromSuper
             )
             createAndBindFakeOverride(overridables, current)
         }
@@ -230,7 +228,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return getMinimalModality(members, transformAbstractToClassModality, current.modality)
     }
 
-    fun areEquivalent(a: IrOverridableMember, b: IrOverridableMember) = (a == b)
+    private fun areEquivalent(a: IrOverridableMember, b: IrOverridableMember) = (a == b)
 
     fun overrides(f: IrOverridableMember, g: IrOverridableMember): Boolean {
 
@@ -242,29 +240,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return false
     }
 
-    fun filterOverrides(
-        candidateSet: Set<IrOverridableMember>
-    ): Set<IrOverridableMember> {
-        if (candidateSet.size <= 1) return candidateSet
-        val result = mutableSetOf<IrOverridableMember>()
-        outerLoop@ for (me in candidateSet) {
-            val iterator = result.iterator()
-            while (iterator.hasNext()) {
-                val other = iterator.next()
-                if (overrides(me, other)) {
-                    iterator.remove()
-                } else if (overrides(other, me)) {
-                    continue@outerLoop
-                }
-            }
-            result.add(me)
-        }
-        assert(!result.isEmpty()) { "All candidates filtered out from $candidateSet" }
-        return result
-    }
-
-
-    fun getOverriddenDeclarations(member: IrOverridableMember): Set<IrOverridableMember> {
+    private fun getOverriddenDeclarations(member: IrOverridableMember): Set<IrOverridableMember> {
         val result = mutableSetOf<IrOverridableMember>()
         collectOverriddenDeclarations(member.original, result)
         return result
@@ -277,8 +253,8 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         if (member.isReal) {
             result.add(member)
         } else {
-            check(!member.overriddenSymbols.isEmpty()) { "No overridden descriptors found for (fake override) $member" }
-            for (overridden in member.original.overriddenSymbols.map{it.owner as IrOverridableMember}) {
+            check(member.overriddenSymbols.isNotEmpty()) { "No overridden descriptors found for (fake override) $member" }
+            for (overridden in member.original.overriddenSymbols.map { it.owner as IrOverridableMember }) {
                 val original = overridden.original
                 collectOverriddenDeclarations(original, result)
                 result.add(original)
@@ -295,7 +271,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         for (descriptor in descriptors) {
             val effectiveModality =
                 if (transformAbstractToClassModality && descriptor.modality === Modality.ABSTRACT) classModality else descriptor.modality
-            if (effectiveModality.compareTo(result) < 0) {
+            if (effectiveModality < result) {
                 result = effectiveModality
             }
         }
@@ -333,7 +309,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         fakeOverride.overriddenSymbols = effectiveOverridden.map { it.original.symbol }
 
         assert(
-            !fakeOverride.overriddenSymbols.isEmpty()
+            fakeOverride.overriddenSymbols.isNotEmpty()
         ) { "Overridden symbols should be set for " + CallableMemberDescriptor.Kind.FAKE_OVERRIDE }
 
         fakeOverrideBuilder.linkFakeOverride(fakeOverride)
@@ -356,13 +332,13 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return if (a == null || b == null) true else isVisibilityMoreSpecific(a, b)
     }
 
-    fun IrTypeCheckerContextWithAdditionalAxioms.isSubtypeOf(a: IrType, b: IrType) =
+    private fun IrTypeCheckerContextWithAdditionalAxioms.isSubtypeOf(a: IrType, b: IrType) =
         AbstractTypeChecker.isSubtypeOf(this as AbstractTypeCheckerContext, a, b)
 
-    fun IrTypeCheckerContextWithAdditionalAxioms.equalTypes(a: IrType, b: IrType) =
+    private fun IrTypeCheckerContextWithAdditionalAxioms.equalTypes(a: IrType, b: IrType) =
         AbstractTypeChecker.equalTypes(this as AbstractTypeCheckerContext, a, b)
 
-    fun createTypeChecker(a: List<IrTypeParameter>, b: List<IrTypeParameter>) =
+    private fun createTypeChecker(a: List<IrTypeParameter>, b: List<IrTypeParameter>) =
         IrTypeCheckerContextWithAdditionalAxioms(irBuiltIns, a, b)
 
     private fun isReturnTypeMoreSpecific(
@@ -375,7 +351,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return typeCheckerContext.isSubtypeOf(aReturnType, bReturnType)
     }
 
-    fun isMoreSpecific(
+    private fun isMoreSpecific(
         a: IrOverridableMember,
         b: IrOverridableMember
     ): Boolean {
@@ -425,7 +401,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return true
     }
 
-    fun selectMostSpecificMember(
+    private fun selectMostSpecificMember(
         overridables: Collection<IrOverridableMember>
     ): IrOverridableMember {
         assert(!overridables.isEmpty()) { "Should have at least one overridable descriptor" }
@@ -467,8 +443,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return firstNonFlexible ?: candidates.first()
     }
 
-
-    fun extractMembersOverridableInBothWays(
+    private fun extractMembersOverridableInBothWays(
         overrider: IrOverridableMember,
         extractFrom: MutableCollection<IrOverridableMember>
     ): Collection<IrOverridableMember> {
@@ -496,7 +471,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return overridable
     }
 
-    fun getBothWaysOverridability(
+    private fun getBothWaysOverridability(
         overriderDescriptor: IrOverridableMember,
         candidateDescriptor: IrOverridableMember
     ): OverrideCompatibilityInfo.Result {
@@ -518,7 +493,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             OverrideCompatibilityInfo.Result.INCOMPATIBLE
     }
 
-    fun isOverridableBy(
+    private fun isOverridableBy(
         superMember: IrOverridableMember,
         subMember: IrOverridableMember,
         // subClass: IrClass?
@@ -526,7 +501,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return isOverridableBy(superMember, subMember/*, subClass*/, false)
     }
 
-    fun isOverridableBy(
+    private fun isOverridableBy(
         superMember: IrOverridableMember,
         subMember: IrOverridableMember,
         // subClass: IrClass?, Would only be needed for external overridability conditions.
@@ -540,25 +515,28 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         // The frontend goes into external overridability condition details here, but don't deal with them in IR (yet?).
     }
 
-    private val IrOverridableMember.compiledValueParameters get() = when(this) {
-        is IrSimpleFunction -> extensionReceiverParameter?.let { listOf(it) + valueParameters } ?: valueParameters
-        is IrProperty -> getter!!.extensionReceiverParameter?.let { listOf(it) } ?: emptyList()
-        else -> error("Unexpected declaration for compiledValueParameters: $this")
-    }
+    private val IrOverridableMember.compiledValueParameters
+        get() = when (this) {
+            is IrSimpleFunction -> extensionReceiverParameter?.let { listOf(it) + valueParameters } ?: valueParameters
+            is IrProperty -> getter!!.extensionReceiverParameter?.let { listOf(it) } ?: emptyList()
+            else -> error("Unexpected declaration for compiledValueParameters: $this")
+        }
 
-    private val IrOverridableMember.returnType get() = when(this) {
-        is IrSimpleFunction -> this.returnType
-        is IrProperty -> this.getter!!.returnType
-        else -> error("Unexpected declaration for returnType: $this")
-    }
+    private val IrOverridableMember.returnType
+        get() = when (this) {
+            is IrSimpleFunction -> this.returnType
+            is IrProperty -> this.getter!!.returnType
+            else -> error("Unexpected declaration for returnType: $this")
+        }
 
-    private val IrOverridableMember.typeParameters get() = when(this) {
-        is IrSimpleFunction -> this.typeParameters
-        is IrProperty -> this.getter!!.typeParameters
-        else -> error("Unexpected declaration for typeParameters: $this")
-    }
+    private val IrOverridableMember.typeParameters
+        get() = when (this) {
+            is IrSimpleFunction -> this.typeParameters
+            is IrProperty -> this.getter!!.typeParameters
+            else -> error("Unexpected declaration for typeParameters: $this")
+        }
 
-    fun isOverridableByWithoutExternalConditions(
+    private fun isOverridableByWithoutExternalConditions(
         superMember: IrOverridableMember,
         subMember: IrOverridableMember,
         checkReturnType: Boolean
@@ -571,7 +549,6 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         val superTypeParameters = superMember.typeParameters
         val subTypeParameters = subMember.typeParameters
 
-        val defaultTypeCheckerContext = IrTypeCheckerContext(irBuiltIns)
         if (superTypeParameters.size != subTypeParameters.size) {
             /* TODO: do we need this in IR?
             superValueParameters.forEachIndexed { index, superParameter ->
@@ -587,7 +564,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
             return OverrideCompatibilityInfo.conflict("Type parameter number mismatch")
             */
 
-            return OverrideCompatibilityInfo.incompatible("Type parameter number mismatch")
+            return incompatible("Type parameter number mismatch")
         }
 
         val typeCheckerContext =
@@ -612,7 +589,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
                     subValueParameters[index].type,
                     parameter.type
                 )
-            ) return OverrideCompatibilityInfo.incompatible("Value parameter type mismatch")
+            ) return incompatible("Value parameter type mismatch")
         }
 
         if (superMember is IrSimpleFunction && subMember is IrSimpleFunction && superMember.isSuspend != subMember.isSuspend) {
@@ -630,7 +607,7 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return OverrideCompatibilityInfo.success()
     }
 
-    fun getBasicOverridabilityProblem(
+    private fun getBasicOverridabilityProblem(
         superMember: IrOverridableMember,
         subMember: IrOverridableMember
     ): OverrideCompatibilityInfo? {
@@ -656,11 +633,15 @@ class IrOverridingUtil(val irBuiltIns: IrBuiltIns, val fakeOverrideBuilder: Fake
         return when (superMember) {
             is IrSimpleFunction -> {
                 require(subMember is IrSimpleFunction)
-                if (superMember.extensionReceiverParameter == null != (subMember.extensionReceiverParameter == null)) {
-                    incompatible("Receiver presence mismatch")
-                } else if (superMember.valueParameters.size != subMember.valueParameters.size) {
-                    incompatible("Value parameter number mismatch")
-                } else null
+                when {
+                    superMember.extensionReceiverParameter == null != (subMember.extensionReceiverParameter == null) -> {
+                        incompatible("Receiver presence mismatch")
+                    }
+                    superMember.valueParameters.size != subMember.valueParameters.size -> {
+                        incompatible("Value parameter number mismatch")
+                    }
+                    else -> null
+                }
             }
             is IrProperty -> {
                 require(subMember is IrProperty)

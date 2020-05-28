@@ -1,11 +1,7 @@
 package org.jetbrains.kotlin.backend.common.serialization
 
 import org.jetbrains.kotlin.backend.common.lower.parents
-import org.jetbrains.kotlin.backend.common.lower.parentsWithSelf
-import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptorWithVisibility
 import org.jetbrains.kotlin.descriptors.Visibilities
-import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationWithVisibility
 import org.jetbrains.kotlin.ir.declarations.IrOverridableMember
@@ -24,11 +20,12 @@ private fun findInvisibleMember(
     // but that requires many of Visibilities.java available in IR.
     // So for now we stick to a quick hack serving the needs
     // of fake override construction algorithm.
-    val parentsWithSelf =  sequenceOf(what) + what.parents
+    val parentsWithSelf = sequenceOf(what) + what.parents
     parentsWithSelf.forEach {
         if (it !is IrDeclarationWithVisibility) return null
         if (it.visibility == Visibilities.INTERNAL &&
-            (from.module != it.module)) {
+            (from.module != it.module)
+        ) {
             return it
         }
     }

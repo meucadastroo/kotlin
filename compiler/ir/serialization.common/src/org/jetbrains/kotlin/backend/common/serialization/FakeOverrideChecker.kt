@@ -1,7 +1,5 @@
 package org.jetbrains.kotlin.backend.common.serialization
 
-import org.jetbrains.kotlin.backend.common.serialization.mangle.descriptor.DescriptorBasedKotlinManglerImpl
-import org.jetbrains.kotlin.backend.common.serialization.mangle.ir.IrBasedKotlinManglerImpl
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Visibilities
@@ -16,9 +14,12 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.module
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.getDescriptorsFiltered
 
-class FakeOverrideChecker(val irMangler: KotlinMangler.IrMangler, val descriptorMangler: KotlinMangler.DescriptorMangler) {
+class FakeOverrideChecker(
+    private val irMangler: KotlinMangler.IrMangler,
+    private val descriptorMangler: KotlinMangler.DescriptorMangler
+) {
 
-    fun checkOverriddenSymbols(fake: IrOverridableMember) {
+    private fun checkOverriddenSymbols(fake: IrOverridableMember) {
         if (fake !is IrSimpleFunction) return // TODO: we need overridden symbols on IrProperty.
         fake.overriddenSymbols.forEach { symbol ->
             assert((symbol.owner.parent as IrClass).declarations.contains(symbol.owner)) {

@@ -7,17 +7,18 @@ import org.jetbrains.kotlin.types.model.TypeConstructorMarker
 
 open class IrTypeCheckerContextWithAdditionalAxioms(
     override val irBuiltIns: IrBuiltIns,
-    val firstParameters: List<IrTypeParameter>,
-    val secondParameters: List<IrTypeParameter>
+    firstParameters: List<IrTypeParameter>,
+    secondParameters: List<IrTypeParameter>
 ) : IrTypeCheckerContext(irBuiltIns) {
     init {
         assert(firstParameters.size == secondParameters.size) {
-            "defferent length of type parameter lists: $firstParameters vs $secondParameters"
+            "different length of type parameter lists: $firstParameters vs $secondParameters"
         }
     }
-    val firstTypeParameterConstructors = firstParameters.map { it.symbol }
-    val secondTypeParameterConstructors = secondParameters.map { it.symbol }
-    val matchingTypeConstructors = firstTypeParameterConstructors.zip(secondTypeParameterConstructors).toMap()
+
+    private val firstTypeParameterConstructors = firstParameters.map { it.symbol }
+    private val secondTypeParameterConstructors = secondParameters.map { it.symbol }
+    private val matchingTypeConstructors = firstTypeParameterConstructors.zip(secondTypeParameterConstructors).toMap()
 
     override fun areEqualTypeConstructors(a: TypeConstructorMarker, b: TypeConstructorMarker): Boolean {
         if (super.isEqualTypeConstructors(a, b)) return true

@@ -1,24 +1,17 @@
 package org.jetbrains.kotlin.backend.common.serialization
 
-import org.jetbrains.kotlin.descriptors.Modality
-import org.jetbrains.kotlin.descriptors.Visibility
-import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.declarations.impl.*
-import org.jetbrains.kotlin.ir.descriptors.WrappedReceiverParameterDescriptor
-import org.jetbrains.kotlin.ir.symbols.IrDelegatingPropertySymbolImpl
-import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
-import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrValueParameterSymbolImpl
-import org.jetbrains.kotlin.ir.symbols.wrapInDelegatedSymbol
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
+import org.jetbrains.kotlin.ir.declarations.IrFunction
+import org.jetbrains.kotlin.ir.declarations.IrProperty
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverrideFunctionImpl
+import org.jetbrains.kotlin.ir.declarations.impl.IrFakeOverridePropertyImpl
 import org.jetbrains.kotlin.ir.util.*
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 
 class FakeOverrideCopier(
-    val symbolRemapper: SymbolRemapper,
-    val typeRemapper: TypeRemapper,
-    val symbolRenamer: SymbolRenamer,
-    val newModality: Modality? = null,
-    val newVisibility: Visibility? = null
+    symbolRemapper: SymbolRemapper,
+    private val typeRemapper: TypeRemapper,
+    private val symbolRenamer: SymbolRenamer
 ) : DeepCopyIrTreeWithSymbols(symbolRemapper, typeRemapper, symbolRenamer) {
 
     private fun <T : IrFunction> T.transformFunctionChildren(declaration: T): T =
@@ -58,8 +51,8 @@ class FakeOverrideCopier(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
             symbolRenamer.getFunctionName(declaration.symbol),
-            newVisibility ?: declaration.visibility,
-            newModality ?: declaration.modality,
+            declaration.visibility,
+            declaration.modality,
             declaration.returnType,
             isInline = declaration.isInline,
             isExternal = false,
@@ -77,8 +70,8 @@ class FakeOverrideCopier(
             declaration.startOffset, declaration.endOffset,
             IrDeclarationOrigin.FAKE_OVERRIDE,
             declaration.name,
-            newVisibility ?: declaration.visibility,
-            newModality ?: declaration.modality,
+            declaration.visibility,
+            declaration.modality,
             isVar = declaration.isVar,
             isConst = declaration.isConst,
             isLateinit = declaration.isLateinit,
