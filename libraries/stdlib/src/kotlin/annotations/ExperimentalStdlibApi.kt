@@ -32,6 +32,6 @@ import kotlin.annotation.AnnotationTarget.*
     TYPEALIAS
 )
 @MustBeDocumented
-@ExperimentalStdlibApi
-@SinceKotlin("1.3")  // TODO: Remove experimental status from itself and advance SinceKotlin to 1.4
+@SinceKotlin("1.3")
+@WasExperimental
 public annotation class ExperimentalStdlibApi
