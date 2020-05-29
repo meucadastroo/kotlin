@@ -64,7 +64,6 @@ abstract class KotlinIrLinker(
     protected val deserializersForModules = mutableMapOf<ModuleDescriptor, IrModuleDeserializer>()
 
     abstract val fakeOverrideBuilderImpl: FakeOverrideBuilderImpl
-    abstract val fakeOverrideChecker: FakeOverrideChecker
 
     private val haveSeen = mutableSetOf<IrSymbol>()
 
@@ -561,14 +560,14 @@ abstract class KotlinIrLinker(
         deserializersForModules.values.forEach { it.init() }
     }
 
-    override fun postProcess(validate: Boolean) {
+    override fun postProcess() {
+        finalizeExpectActualLinker()
+
         deserializersForModules.values.forEach {
             it.postProcess {
                 fakeOverrideBuilderImpl.provideFakeOverrides(it)
-                if (validate) fakeOverrideChecker.check(it)
             }
         }
-        finalizeExpectActualLinker()
 
         symbolTable.noUnboundLeft("unbound after fake overrides:")
     }
