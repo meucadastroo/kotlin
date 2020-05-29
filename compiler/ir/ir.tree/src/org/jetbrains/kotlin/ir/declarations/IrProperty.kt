@@ -41,5 +41,4 @@ interface IrProperty :
     var backingField: IrField?
     var getter: IrSimpleFunction?
     var setter: IrSimpleFunction?
-
 }
