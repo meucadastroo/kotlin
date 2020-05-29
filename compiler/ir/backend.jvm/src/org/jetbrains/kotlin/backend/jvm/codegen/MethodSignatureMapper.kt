@@ -27,6 +27,8 @@ import org.jetbrains.kotlin.codegen.state.extractTypeMappingModeFromAnnotation
 import org.jetbrains.kotlin.codegen.state.isMethodWithDeclarationSiteWildcardsFqName
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.declarations.lazy.IrLazyClass
+import org.jetbrains.kotlin.ir.declarations.lazy.IrLazyFunction
 import org.jetbrains.kotlin.ir.declarations.lazy.IrLazyFunctionBase
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConst
@@ -35,10 +37,10 @@ import org.jetbrains.kotlin.ir.types.*
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.load.java.*
 import org.jetbrains.kotlin.load.java.descriptors.JavaClassDescriptor
-import org.jetbrains.kotlin.load.kotlin.TypeMappingMode
-import org.jetbrains.kotlin.load.kotlin.forceSingleValueParameterBoxing
-import org.jetbrains.kotlin.load.kotlin.getJvmModuleNameForDeserializedDescriptor
-import org.jetbrains.kotlin.load.kotlin.signatures
+import org.jetbrains.kotlin.load.kotlin.*
+import org.jetbrains.kotlin.metadata.deserialization.getExtensionOrNull
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodGenericSignature
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodParameterKind
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
@@ -113,7 +115,7 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
     private fun getModuleName(function: IrFunction): String =
         // TODO: get rid of descriptors here
         (if (function is IrLazyFunctionBase)
-            getJvmModuleNameForDeserializedDescriptor(function.descriptor)
+            getJvmModuleNameForDeserialized(function)
         else null) ?: context.state.moduleName
 
     private fun IrFunction.isPublishedApi(): Boolean =
@@ -346,7 +348,7 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
         return current
     }
 
-    fun getJvmMethodNameIfSpecial(irFunction: IrFunction): String? =
+    private fun getJvmMethodNameIfSpecial(irFunction: IrFunction): String? =
         (irFunction as? IrSimpleFunction)?.run {
             getBuiltinSpecialPropertyGetterName() ?: getDifferentNameForJvmBuiltinFunction()
         }
@@ -360,7 +362,7 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
     }
 
     // From BuiltinMethodsWithDifferentJvmName.isBuiltinFunctionWithDifferentNameInJvm, BuiltinMethodsWithDifferentJvmName.getJvmName
-    fun IrSimpleFunction.getDifferentNameForJvmBuiltinFunction(): String? {
+    private fun IrSimpleFunction.getDifferentNameForJvmBuiltinFunction(): String? {
         if (name !in BuiltinMethodsWithDifferentJvmName.ORIGINAL_SHORT_NAMES) return null
         if (!isBuiltIn) return null
         return allOverridden(includeSelf = true)
@@ -372,7 +374,7 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
             .firstOrNull()
     }
 
-    fun IrSimpleFunction.getBuiltinSpecialPropertyGetterName(): String? {
+    private fun IrSimpleFunction.getBuiltinSpecialPropertyGetterName(): String? {
         val propertyName  = correspondingPropertySymbol?.owner?.name ?: return null
         if (propertyName !in BuiltinSpecialProperties.SPECIAL_SHORT_NAMES) return null
         if (!isBuiltIn) return null
@@ -388,5 +390,27 @@ class MethodSignatureMapper(private val context: JvmBackendContext) {
         val classPart = context.typeMapper.mapType(parentAsClass.defaultType).internalName
         val signature = mapSignature(this@computeJvmSignature, skipGenericSignature = false, skipSpecial = true).toString()
         return signature(classPart, signature)
+    }
+
+    // From org.jetbrains.kotlin.load.kotlin.getJvmModuleNameForDeserializedDescriptor
+    private fun getJvmModuleNameForDeserialized(function: IrLazyFunctionBase): String? {
+        var current: IrDeclarationParent? = function.parent
+        while (current != null) {
+            when (current) {
+                is IrLazyClass -> {
+                    val classProto = current.classProto ?: return null
+                    val nameResolver = current.nameResolver ?: return null
+                    return classProto.getExtensionOrNull(JvmProtoBuf.classModuleName)
+                        ?.let(nameResolver::getString)
+                        ?: JvmProtoBufUtil.DEFAULT_MODULE_NAME
+                }
+                is IrExternalPackageFragment -> {
+                    val source = current.containerSource ?: return null
+                    return (source as? JvmPackagePartSource)?.moduleName
+                }
+                else -> current = (current as? IrDeclaration)?.parent ?: return null
+            }
+        }
+        return null
     }
 }
