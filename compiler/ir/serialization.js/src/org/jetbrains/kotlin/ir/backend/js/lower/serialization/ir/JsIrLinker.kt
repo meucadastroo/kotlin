@@ -17,14 +17,13 @@ import org.jetbrains.kotlin.library.IrLibrary
 import org.jetbrains.kotlin.library.SerializedIrFile
 
 class JsIrLinker(
-    currentModule: ModuleDescriptor?, logger: LoggingContext, builtIns: IrBuiltIns, symbolTable: SymbolTable,
+    private val currentModule: ModuleDescriptor?, logger: LoggingContext, builtIns: IrBuiltIns, symbolTable: SymbolTable,
     override val functionalInteraceFactory: IrAbstractFunctionFactory,
     private val icData: List<SerializedIrFile>? = null
 ) :
     KotlinIrLinker(currentModule, logger, builtIns, symbolTable, emptyList()) {
 
     override val fakeOverrideBuilderImpl = FakeOverrideBuilderImpl(symbolTable, IdSignatureSerializer(JsManglerIr), builtIns)
-    override val fakeOverrideChecker = FakeOverrideChecker(JsManglerIr, JsManglerDesc)
 
     override fun isBuiltInModule(moduleDescriptor: ModuleDescriptor): Boolean =
         moduleDescriptor === moduleDescriptor.builtIns.builtInsModule
@@ -44,4 +43,8 @@ class JsIrLinker(
         }
         return currentModuleDeserializer
     }
+    val modules
+        get() = deserializersForModules.values
+            .map { it.moduleFragment }
+            .filter { it.descriptor !== currentModule }
 }
