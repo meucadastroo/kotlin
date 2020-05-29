@@ -263,11 +263,11 @@ class Stats(
         val testData = TestData<SV, TV>(null, null)
 
         try {
+            val phaseProfiler = createPhaseProfiler(phaseData, phaseName, profilerConfig)
+
             for (attempt in 0 until phaseData.iterations) {
                 testData.reset()
                 triggerGC(attempt)
-
-                val phaseProfiler = createPhaseProfiler(phaseData, phaseName, attempt, profilerConfig)
 
                 val setUpMillis = measureTimeMillis { phaseData.setUp(testData) }
                 val attemptName = "${phaseData.testName} #$attempt"
@@ -317,17 +317,14 @@ class Stats(
     private fun <K, T> createPhaseProfiler(
         phaseData: PhaseData<K, T>,
         phaseName: String,
-        attempt: Int,
         profilerConfig: ProfilerConfig
     ): PhaseProfiler {
-        val profilerHandler = if (phaseData.profilerEnabled) ProfilerHandler.getInstance() else DummyProfilerHandler
+        profilerConfig.name = "${phaseData.testName}${if (phaseName.isEmpty()) "" else "$phaseName"}"
+        profilerConfig.path = pathToResource("profile/${plainname()}")
+        val profilerHandler = if (phaseData.profilerEnabled) ProfilerHandler.getInstance(profilerConfig) else DummyProfilerHandler
 
         return if (profilerHandler != DummyProfilerHandler) {
-            val profilerPath = pathToResource("profile/${plainname()}")
-            check(with(File(profilerPath)) { exists() || mkdirs() }) { "unable to mkdirs $profilerPath for ${phaseData.testName}" }
-            val activityName = "${phaseData.testName}-${if (phaseName.isEmpty()) "" else "$phaseName-"}$attempt"
-
-            ActualPhaseProfiler(activityName, profilerPath, profilerHandler, profilerConfig)
+            ActualPhaseProfiler(profilerHandler)
         } else {
             DummyPhaseProfiler
         }
